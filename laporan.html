@@ -47,11 +47,11 @@
       padding: 30px;
       border-radius: 10px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      text-align: center;
     }
     h2 {
       margin-bottom: 20px;
       color: #333;
+      text-align: center;
     }
     .card {
       margin: 15px 0;
@@ -59,10 +59,67 @@
       border-radius: 8px;
       background: #f0f0f0;
       font-size: 18px;
+      text-align: center;
     }
     .pemasukan { background: #d4edda; }
     .pengeluaran { background: #f8d7da; }
     .total { background: #d1ecf1; font-weight: bold; }
+
+    /* Kotak laporan tanggal */
+    .laporan-tanggal {
+      margin-top: 40px;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    .laporan-tanggal h3 {
+      text-align: center;
+      margin-bottom: 15px;
+      color: #004d4d;
+    }
+    .filter {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .filter input {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .filter button {
+      padding: 8px 15px;
+      background: #004d4d;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      margin-left: 5px;
+      cursor: pointer;
+    }
+    .filter button:hover {
+      background: #006666;
+    }
+    .result {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 6px;
+      display: none;
+    }
+    .result p {
+      margin: 6px 0;
+    }
+    .result ul {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0;
+    }
+    .result ul li {
+      background: #e9ecef;
+      margin: 3px 0;
+      padding: 6px;
+      border-radius: 4px;
+      border-left: 4px solid #004d4d;
+    }
   </style>
 </head>
 <body>
@@ -70,6 +127,7 @@
     <h1>Ngopi Bang</h1>
     <div>Hi: <span id="username">User</span></div>
   </header>
+
   <nav>
     <a href="dashboard.html">Kasir</a>
     <a href="pengeluaran.html">Pengeluaran</a>
@@ -84,14 +142,32 @@
     <div class="card total">Total Bersih Pemasukan: <strong id="total">0</strong></div>
   </div>
 
+  <!-- KOTAK BARU UNTUK LAPORAN PER TANGGAL -->
+  <div class="container laporan-tanggal">
+    <h3>Laporan Per Tanggal</h3>
+    <div class="filter">
+      <input type="date" id="tanggalInput">
+      <button onclick="getLaporanByTanggal()">Tampilkan</button>
+    </div>
+
+    <div class="result" id="resultTanggal">
+      <p><strong>Tanggal:</strong> <span id="tglHasil"></span></p>
+      <ul id="listTransaksi"></ul>
+      <p><strong>Total Pemasukan:</strong> Rp <span id="totalHasil"></span></p>
+    </div>
+  </div>
+
   <script>
     const URL = "https://script.google.com/macros/s/AKfycbz21TyyJOPAvoAB3bi4mv9QIPuK9S3AddK7LJW4dhwuP18hPKyuK9cqbnjzdTTLNLBO0A/exec";
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/1LaQKJz7QOin-jV7EKFB8xj3sfAUmkmXru3AqFECVXHw/gviz/tq?tqx=out:json&gid=2078055153";
+
 
     if (!localStorage.getItem("isLoggedIn")) {
       window.location.href = "login.html";
     }
     document.getElementById("username").textContent = localStorage.getItem("username") || "User";
 
+    // ambil total dari Apps Script
     async function getLaporan() {
       try {
         const res = await fetch(`${URL}?action=laporan`);
@@ -101,6 +177,55 @@
         document.getElementById("total").textContent = data.total;
       } catch (err) {
         alert("Gagal ambil laporan!");
+      }
+    }
+
+    // ambil laporan per tanggal langsung dari Google Sheet
+    async function getLaporanByTanggal() {
+      const input = document.getElementById("tanggalInput").value;
+      if (!input) return alert("Pilih tanggal dulu!");
+
+      const [yyyy, mm, dd] = input.split("-");
+      const formatted = `${dd}/${mm}/${yyyy}`;
+
+      try {
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+        const json = JSON.parse(text.substr(47).slice(0, -2)); // format JSON Google Sheets
+        const rows = json.table.rows;
+
+        let list = [];
+        let total = 0;
+
+        rows.forEach(r => {
+          const tanggal = r.c[0]?.v;
+          const pemasukan = r.c[1]?.v || 0;
+          if (tanggal === formatted) {
+            list.push(pemasukan);
+            total += pemasukan;
+          }
+        });
+
+        const resultBox = document.getElementById("resultTanggal");
+        const listBox = document.getElementById("listTransaksi");
+        listBox.innerHTML = "";
+
+        if (list.length === 0) {
+          listBox.innerHTML = "<li>Tidak ada data untuk tanggal ini.</li>";
+        } else {
+          list.forEach(v => {
+            const li = document.createElement("li");
+            li.textContent = "Rp " + v.toLocaleString("id-ID");
+            listBox.appendChild(li);
+          });
+        }
+
+        document.getElementById("tglHasil").textContent = formatted;
+        document.getElementById("totalHasil").textContent = total.toLocaleString("id-ID");
+        resultBox.style.display = "block";
+
+      } catch (err) {
+        alert("Gagal ambil data dari Spreadsheet!");
       }
     }
 
