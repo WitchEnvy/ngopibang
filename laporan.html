@@ -65,7 +65,7 @@
     .pengeluaran { background: #f8d7da; }
     .total { background: #d1ecf1; font-weight: bold; }
 
-    /* Kotak laporan tanggal */
+    /* Laporan per tanggal */
     .laporan-tanggal {
       margin-top: 40px;
       background: #ffffff;
@@ -142,7 +142,7 @@
     <div class="card total">Total Bersih Pemasukan: <strong id="total">0</strong></div>
   </div>
 
-  <!-- KOTAK BARU UNTUK LAPORAN PER TANGGAL -->
+  <!-- Laporan Per Tanggal -->
   <div class="container laporan-tanggal">
     <h3>Laporan Per Tanggal</h3>
     <div class="filter">
@@ -167,7 +167,7 @@
     }
     document.getElementById("username").textContent = localStorage.getItem("username") || "User";
 
-    // Ambil total dari Apps Script
+    // Total laporan umum
     async function getLaporan() {
       try {
         const res = await fetch(`${URL}?action=laporan`);
@@ -175,12 +175,12 @@
         document.getElementById("pemasukan").textContent = data.pemasukan;
         document.getElementById("pengeluaran").textContent = data.pengeluaran;
         document.getElementById("total").textContent = data.total;
-      } catch (err) {
+      } catch {
         alert("Gagal ambil laporan!");
       }
     }
 
-    // ✅ Ambil laporan per tanggal langsung dari Google Sheet (fix format tanggal)
+    // Laporan per tanggal (fix format)
     async function getLaporanByTanggal() {
       const input = document.getElementById("tanggalInput").value;
       if (!input) return alert("Pilih tanggal dulu!");
@@ -191,29 +191,35 @@
       try {
         const res = await fetch(SHEET_URL);
         const text = await res.text();
-        const json = JSON.parse(text.substr(47).slice(0, -2)); // format JSON Google Sheets
+        const json = JSON.parse(text.substr(47).slice(0, -2));
         const rows = json.table.rows;
 
         let list = [];
         let total = 0;
 
-        // buat objek Date dari input (misal 2025-11-05)
-        const tglInput = new Date(`${yyyy}-${mm}-${dd}`);
-
         rows.forEach(r => {
-          const tanggal = r.c[0]?.v;
-          const pemasukan = r.c[1]?.v || 0;
+          let tanggal = r.c[0]?.v;
+          let pemasukan = parseInt(r.c[1]?.v || 0);
+
           if (!tanggal) return;
 
-          // ubah tanggal dari spreadsheet ke Date object
-          const tglSheet = new Date(tanggal);
+          // Normalisasi semua tanggal ke format dd/mm/yyyy
+          if (typeof tanggal === "number") {
+            // format serial Excel
+            const base = new Date(1899, 11, 30);
+            base.setDate(base.getDate() + tanggal);
+            tanggal = base.toLocaleDateString("id-ID");
+          } else if (tanggal.includes("-")) {
+            // format yyyy-mm-dd
+            const parts = tanggal.split("-");
+            tanggal = `${parseInt(parts[2])}/${parseInt(parts[1])}/${parts[0]}`;
+          } else if (tanggal.includes("/")) {
+            // format 5/11/2025 → normalisasi jadi 5/11/2025
+            const parts = tanggal.split("/");
+            tanggal = `${parseInt(parts[0])}/${parseInt(parts[1])}/${parts[2]}`;
+          }
 
-          // cocokkan tanggal (tanpa peduli leading zero)
-          if (
-            tglSheet.getDate() === tglInput.getDate() &&
-            tglSheet.getMonth() === tglInput.getMonth() &&
-            tglSheet.getFullYear() === tglInput.getFullYear()
-          ) {
+          if (tanggal === `${parseInt(dd)}/${parseInt(mm)}/${yyyy}`) {
             list.push(pemasukan);
             total += pemasukan;
           }
